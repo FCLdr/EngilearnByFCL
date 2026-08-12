@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NSI — Engilearn</title>
+    <style>
+        :root {
+            --bg: #0b0d11;
+            --text: #e8eef9;
+            --muted: #cdcdcd;
+            --accent: #590b0b;
+            --accent-2: #f44b0b;
+            --card: #121621;
+            --glass: rgba(255, 255, 255, .06);
+            --border: rgba(255, 255, 255, .12);
+            --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+            --radius: 20px;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: radial-gradient(1200px 800px at 80% -10%, rgba(124, 92, 255, .25), transparent 60%),
+                        radial-gradient(1000px 700px at -10% 10%, rgba(0, 224, 209, .2), transparent 55%), var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        a { color: inherit; text-decoration: none; }
+        .container { width: min(1200px, 92%); margin-inline: auto; }
+
+        header {
+            position: sticky; top: 0; z-index: 50;
+            backdrop-filter: blur(8px);
+            background: rgba(0, 0, 0, .35);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+        .back-link { opacity: .8; padding: 10px 16px; border-radius: 12px; transition: 0.3s; background: var(--glass); }
+        .back-link:hover { opacity: 1; background: rgba(255,255,255,.1); }
+
+        h1 { font-size: clamp(28px, 4vw, 52px); line-height: 1.1; margin: 40px 0 10px; }
+        .gradient-text { background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: bold; }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-top: 50px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .section-title .badge {
+            font-size: .75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 40px 20px;
+            text-align: center;
+            background: var(--glass);
+            transition: all 0.3s;
+            cursor: pointer;
+            margin-bottom: 30px;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent-2);
+            background: rgba(255,255,255,.08);
+        }
+        .drop-zone .icon { font-size: 36px; margin-bottom: 10px; opacity: .7; }
+        .drop-zone p { margin: 6px 0; color: var(--muted); font-size: .95rem; }
+        .drop-zone strong { color: var(--text); }
+        .fileInput { display: none; }
+
+        .pdf-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 24px;
+            margin: 20px 0 40px;
+        }
+        .pdf-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .pdf-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-2);
+            box-shadow: var(--shadow);
+        }
+        .pdf-icon { font-size: 40px; margin-bottom: 12px; }
+        .pdf-name { font-weight: 600; font-size: 1rem; word-break: break-word; margin-bottom: 6px; }
+        .pdf-meta { font-size: .85rem; color: var(--muted); margin-bottom: 16px; }
+        .pdf-actions { display: flex; gap: 10px; }
+        .btn {
+            flex: 1; padding: 10px 14px; border-radius: 12px;
+            border: 1px solid var(--border); background: var(--glass);
+            color: var(--text); font-size: .9rem; cursor: pointer;
+            transition: 0.2s; text-align: center;
+        }
+        .btn:hover { background: rgba(255,255,255,.1); border-color: var(--accent-2); }
+        .btn-danger:hover { border-color: #ff4444; color: #ff4444; }
+
+        .empty-state {
+            text-align: center; padding: 40px 20px; color: var(--muted);
+            background: var(--glass); border-radius: var(--radius);
+            border: 1px dashed var(--border);
+        }
+        .empty-state .icon { font-size: 48px; opacity: .4; margin-bottom: 12px; }
+
+        footer {
+            text-align: center; padding: 40px 0;
+            border-top: 1px solid var(--border);
+            margin-top: 40px; color: var(--muted);
+        }
+
+        @media (max-width: 600px) {
+            .pdf-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="container nav">
+        <a href="index.html" class="back-link">← Retour</a>
+        <div style="font-weight:700; font-size:1.1rem;">Engilearn</div>
+    </div>
+</header>
+
+<main class="container">
+    <h1><span class="gradient-text">NSI</span></h1>
+    <p style="color: var(--muted); margin-bottom: 20px;">Déposez vos fichiers PDF dans la bonne catégorie.</p>
+
+    <!-- COURS -->
+    <div class="section-title">
+        📖 Cours <span class="badge" id="badge-cours">0</span>
+    </div>
+    <div class="drop-zone" id="dropZoneCours">
+        <div class="icon">📄</div>
+        <p><strong>Glissez-déposez vos PDF de cours ici</strong></p>
+        <p>ou cliquez pour sélectionner</p>
+        <input type="file" class="fileInput" id="fileInputCours" accept=".pdf,application/pdf" multiple>
+    </div>
+    <div id="pdfListCours">
+        <div class="empty-state">
+            <div class="icon">📂</div>
+            <p>Aucun cours pour le moment.</p>
+        </div>
+    </div>
+
+    <!-- EXERCICES -->
+    <div class="section-title">
+        ✏️ Exercices <span class="badge" id="badge-exo">0</span>
+    </div>
+    <div class="drop-zone" id="dropZoneExo">
+        <div class="icon">📝</div>
+        <p><strong>Glissez-déposez vos PDF d'exercices ici</strong></p>
+        <p>ou cliquez pour sélectionner</p>
+        <input type="file" class="fileInput" id="fileInputExo" accept=".pdf,application/pdf" multiple>
+    </div>
+    <div id="pdfListExo">
+        <div class="empty-state">
+            <div class="icon">📂</div>
+            <p>Aucun exercice pour le moment.</p>
+        </div>
+    </div>
+</main>
+
+<footer>
+    <p>&copy; <span id="year"></span>, Made by FCL. Tous droits réservés.</p>
+</footer>
+
+<script>
+    const SUBJECT = 'nsi';
+    const DB_NAME = 'EngilearnPDFs';
+    const STORE_NAME = 'pdfs';
+    let db = null;
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 2);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+            request.onupgradeneeded = (e) => {
+                const database = e.target.result;
+                if (!database.objectStoreNames.contains(STORE_NAME)) {
+                    const store = database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('subject', 'subject', { unique: false });
+                    store.createIndex('category', 'category', { unique: false });
+                } else {
+                    const tx = e.target.transaction;
+                    const store = tx.objectStore(STORE_NAME);
+                    if (!store.indexNames.contains('category')) {
+                        store.createIndex('category', 'category', { unique: false });
+                    }
+                }
+            };
+        });
+    }
+
+    async function init() {
+        db = await openDB();
+        renderAll();
+    }
+
+    function addPDF(file, category) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const data = reader.result;
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const entry = {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    subject: SUBJECT,
+                    category: category,
+                    dateAdded: new Date().toISOString(),
+                    data: data
+                };
+                const req = store.add(entry);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            };
+            reader.onerror = () => reject(reader.error);
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function getPDFs(category) {
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const index = store.index('subject');
+            const req = index.getAll(SUBJECT);
+            req.onsuccess = () => {
+                const all = req.result;
+                const filtered = all.filter(p => (p.category || 'cours') === category);
+                resolve(filtered);
+            };
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    function deletePDF(id) {
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.delete(id);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' o';
+        if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' Ko';
+        return (bytes/(1024*1024)).toFixed(2) + ' Mo';
+    }
+
+    function formatDate(iso) {
+        const d = new Date(iso);
+        return d.toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    }
+
+    async function renderCategory(category, containerId, badgeId) {
+        const container = document.getElementById(containerId);
+        const badge = document.getElementById(badgeId);
+        const pdfs = await getPDFs(category);
+
+        badge.textContent = pdfs.length;
+
+        if (pdfs.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="icon">📂</div>
+                    <p>Aucun ` + (category === 'cours' ? 'cours' : 'exercice') + ` pour le moment.</p>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = '<div class="pdf-grid">' + pdfs.map(pdf => {
+            const blob = new Blob([pdf.data], { type: pdf.type || 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const icon = category === 'cours' ? '📄' : '📝';
+            return `
+            <div class="pdf-card">
+                <div class="pdf-icon">` + icon + `</div>
+                <div class="pdf-name">` + escapeHtml(pdf.name) + `</div>
+                <div class="pdf-meta">` + formatSize(pdf.size) + ` • ` + formatDate(pdf.dateAdded) + `</div>
+                <div class="pdf-actions">
+                    <a href="` + url + `" target="_blank" class="btn">Ouvrir</a>
+                    <button class="btn btn-danger" onclick="handleDelete(` + pdf.id + `)">Supprimer</button>
+                </div>
+            </div>`;
+        }).join('') + '</div>';
+    }
+
+    async function renderAll() {
+        await renderCategory('cours', 'pdfListCours', 'badge-cours');
+        await renderCategory('exercices', 'pdfListExo', 'badge-exo');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function handleDelete(id) {
+        if (!confirm('Supprimer ce PDF ?')) return;
+        await deletePDF(id);
+        renderAll();
+    }
+
+    function setupDropZone(zoneId, inputId, category) {
+        const dropZone = document.getElementById(zoneId);
+        const fileInput = document.getElementById(inputId);
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+            for (const file of files) await addPDF(file, category);
+            renderAll();
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files).filter(f => f.type === 'application/pdf');
+            for (const file of files) await addPDF(file, category);
+            fileInput.value = '';
+            renderAll();
+        });
+    }
+
+    setupDropZone('dropZoneCours', 'fileInputCours', 'cours');
+    setupDropZone('dropZoneExo', 'fileInputExo', 'exercices');
+
+    init();
+</script>
+</body>
+</html>
