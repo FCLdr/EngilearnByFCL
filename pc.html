@@ -132,7 +132,6 @@
             .pdf-grid { grid-template-columns: 1fr; }
         }
     </style>
-    <script src="/auth.js"></script>
 <base target="_blank">
 </head>
 <body>
@@ -192,30 +191,12 @@
 
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    async function api(url, options = {}) {
-        const token = localStorage.getItem('engilearn_token');
-        if (!token) {
-            window.location.href = '/auth.html';
-            throw new Error('Non connecté');
-        }
-        options.headers = options.headers || {};
-        options.headers['Authorization'] = 'Bearer ' + token;
-        const res = await fetch(url, options);
-        if (res.status === 401) {
-            localStorage.removeItem('engilearn_token');
-            localStorage.removeItem('engilearn_user');
-            window.location.href = '/auth.html';
-            throw new Error('Unauthorized');
-        }
-        return res;
-    }
-
     async function addPDF(file, category) {
         const formData = new FormData();
         formData.append('pdf', file);
         formData.append('subject', SUBJECT);
         formData.append('category', category);
-        const res = await api('/api/pdfs', { method: 'POST', body: formData });
+        const res = await fetch('/api/pdfs', { method: 'POST', body: formData });
         if (!res.ok) {
             const err = await res.json();
             throw new Error(err.error || 'Erreur upload');
@@ -224,13 +205,13 @@
     }
 
     async function getPDFs(category) {
-        const res = await api(`/api/pdfs?subject=${SUBJECT}&category=${category}`);
+        const res = await fetch(`/api/pdfs?subject=${SUBJECT}&category=${category}`);
         if (!res.ok) throw new Error('Erreur récupération');
         return res.json();
     }
 
     async function deletePDF(id) {
-        const res = await api(`/api/pdfs/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/pdfs/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Erreur suppression');
         return res.json();
     }
@@ -277,7 +258,7 @@
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="icon">⚠️</div>
-                    <p>Erreur de chargement. Vérifiez votre connexion.</p>
+                    <p>Erreur de chargement. Vérifiez que le serveur est lancé.</p>
                 </div>`;
         }
     }
