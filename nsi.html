@@ -132,6 +132,8 @@
             .pdf-grid { grid-template-columns: 1fr; }
         }
     </style>
+    <script src="/auth.js"></script>
+<base target="_blank">
 </head>
 <body>
 
@@ -187,87 +189,50 @@
 
 <script>
     const SUBJECT = 'nsi';
-    const DB_NAME = 'EngilearnPDFs';
-    const STORE_NAME = 'pdfs';
-    let db = null;
 
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    function openDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, 2);
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => resolve(request.result);
-            request.onupgradeneeded = (e) => {
-                const database = e.target.result;
-                if (!database.objectStoreNames.contains(STORE_NAME)) {
-                    const store = database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-                    store.createIndex('subject', 'subject', { unique: false });
-                    store.createIndex('category', 'category', { unique: false });
-                } else {
-                    const tx = e.target.transaction;
-                    const store = tx.objectStore(STORE_NAME);
-                    if (!store.indexNames.contains('category')) {
-                        store.createIndex('category', 'category', { unique: false });
-                    }
-                }
-            };
-        });
+    async function api(url, options = {}) {
+        const token = localStorage.getItem('engilearn_token');
+        if (!token) {
+            window.location.href = '/auth.html';
+            throw new Error('Non connecté');
+        }
+        options.headers = options.headers || {};
+        options.headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch(url, options);
+        if (res.status === 401) {
+            localStorage.removeItem('engilearn_token');
+            localStorage.removeItem('engilearn_user');
+            window.location.href = '/auth.html';
+            throw new Error('Unauthorized');
+        }
+        return res;
     }
 
-    async function init() {
-        db = await openDB();
-        renderAll();
+    async function addPDF(file, category) {
+        const formData = new FormData();
+        formData.append('pdf', file);
+        formData.append('subject', SUBJECT);
+        formData.append('category', category);
+        const res = await api('/api/pdfs', { method: 'POST', body: formData });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Erreur upload');
+        }
+        return res.json();
     }
 
-    function addPDF(file, category) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const data = reader.result;
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const entry = {
-                    name: file.name,
-                    size: file.size,
-                    type: file.type,
-                    subject: SUBJECT,
-                    category: category,
-                    dateAdded: new Date().toISOString(),
-                    data: data
-                };
-                const req = store.add(entry);
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => reject(req.error);
-            };
-            reader.onerror = () => reject(reader.error);
-            reader.readAsArrayBuffer(file);
-        });
+    async function getPDFs(category) {
+        const res = await api(`/api/pdfs?subject=${SUBJECT}&category=${category}`);
+        if (!res.ok) throw new Error('Erreur récupération');
+        return res.json();
     }
 
-    function getPDFs(category) {
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readonly');
-            const store = tx.objectStore(STORE_NAME);
-            const index = store.index('subject');
-            const req = index.getAll(SUBJECT);
-            req.onsuccess = () => {
-                const all = req.result;
-                const filtered = all.filter(p => (p.category || 'cours') === category);
-                resolve(filtered);
-            };
-            req.onerror = () => reject(req.error);
-        });
-    }
-
-    function deletePDF(id) {
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            const req = store.delete(id);
-            req.onsuccess = () => resolve();
-            req.onerror = () => reject(req.error);
-        });
+    async function deletePDF(id) {
+        const res = await api(`/api/pdfs/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Erreur suppression');
+        return res.json();
     }
 
     function formatSize(bytes) {
@@ -284,34 +249,37 @@
     async function renderCategory(category, containerId, badgeId) {
         const container = document.getElementById(containerId);
         const badge = document.getElementById(badgeId);
-        const pdfs = await getPDFs(category);
-
-        badge.textContent = pdfs.length;
-
-        if (pdfs.length === 0) {
+        try {
+            const pdfs = await getPDFs(category);
+            badge.textContent = pdfs.length;
+            if (pdfs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📂</div>
+                        <p>Aucun ${category === 'cours' ? 'cours' : 'exercice'} pour le moment.</p>
+                    </div>`;
+                return;
+            }
+            container.innerHTML = '<div class="pdf-grid">' + pdfs.map(pdf => {
+                const icon = category === 'cours' ? '📄' : '📝';
+                return `
+                <div class="pdf-card">
+                    <div class="pdf-icon">${icon}</div>
+                    <div class="pdf-name">${escapeHtml(pdf.name)}</div>
+                    <div class="pdf-meta">${formatSize(pdf.size)} • ${formatDate(pdf.created_at)}</div>
+                    <div class="pdf-actions">
+                        <a href="/uploads/${encodeURIComponent(pdf.filename)}" target="_blank" class="btn">Ouvrir</a>
+                        <button class="btn btn-danger" onclick="handleDelete(${pdf.id})">Supprimer</button>
+                    </div>
+                </div>`;
+            }).join('') + '</div>';
+        } catch (err) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <div class="icon">📂</div>
-                    <p>Aucun ` + (category === 'cours' ? 'cours' : 'exercice') + ` pour le moment.</p>
+                    <div class="icon">⚠️</div>
+                    <p>Erreur de chargement. Vérifiez votre connexion.</p>
                 </div>`;
-            return;
         }
-
-        container.innerHTML = '<div class="pdf-grid">' + pdfs.map(pdf => {
-            const blob = new Blob([pdf.data], { type: pdf.type || 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-            const icon = category === 'cours' ? '📄' : '📝';
-            return `
-            <div class="pdf-card">
-                <div class="pdf-icon">` + icon + `</div>
-                <div class="pdf-name">` + escapeHtml(pdf.name) + `</div>
-                <div class="pdf-meta">` + formatSize(pdf.size) + ` • ` + formatDate(pdf.dateAdded) + `</div>
-                <div class="pdf-actions">
-                    <a href="` + url + `" target="_blank" class="btn">Ouvrir</a>
-                    <button class="btn btn-danger" onclick="handleDelete(` + pdf.id + `)">Supprimer</button>
-                </div>
-            </div>`;
-        }).join('') + '</div>';
     }
 
     async function renderAll() {
@@ -327,16 +295,18 @@
 
     async function handleDelete(id) {
         if (!confirm('Supprimer ce PDF ?')) return;
-        await deletePDF(id);
-        renderAll();
+        try {
+            await deletePDF(id);
+            renderAll();
+        } catch (err) {
+            alert('Erreur lors de la suppression');
+        }
     }
 
     function setupDropZone(zoneId, inputId, category) {
         const dropZone = document.getElementById(zoneId);
         const fileInput = document.getElementById(inputId);
-
         dropZone.addEventListener('click', () => fileInput.click());
-
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('dragover');
@@ -346,13 +316,18 @@
             e.preventDefault();
             dropZone.classList.remove('dragover');
             const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
-            for (const file of files) await addPDF(file, category);
+            for (const file of files) {
+                try { await addPDF(file, category); }
+                catch (err) { alert('Erreur upload: ' + err.message); }
+            }
             renderAll();
         });
-
         fileInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files).filter(f => f.type === 'application/pdf');
-            for (const file of files) await addPDF(file, category);
+            for (const file of files) {
+                try { await addPDF(file, category); }
+                catch (err) { alert('Erreur upload: ' + err.message); }
+            }
             fileInput.value = '';
             renderAll();
         });
@@ -360,8 +335,7 @@
 
     setupDropZone('dropZoneCours', 'fileInputCours', 'cours');
     setupDropZone('dropZoneExo', 'fileInputExo', 'exercices');
-
-    init();
+    renderAll();
 </script>
 </body>
 </html>
