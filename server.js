@@ -47,6 +47,17 @@ db.exec(`
     );
 `);
 
+// Utilisateur anonyme par défaut pour les PDFs sans connexion
+let ANON_USER_ID;
+const anon = db.prepare("SELECT id FROM users WHERE username = ?").get('anonymous');
+if (!anon) {
+    const stmt = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)');
+    const result = stmt.run('anonymous', 'anon@localhost', '');
+    ANON_USER_ID = result.lastInsertRowid;
+} else {
+    ANON_USER_ID = anon.id;
+}
+
 // Configuration Multer pour les PDFs
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads/'),
@@ -64,7 +75,7 @@ const upload = multer({
     limits: { fileSize: 50 * 1024 * 1024 } // 50 Mo max
 });
 
-// Middleware d'authentification
+// Middleware d'authentification (gardé pour les routes auth, mais pas obligatoire pour les PDFs)
 function authMiddleware(req, res, next) {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Token manquant' });
@@ -97,7 +108,7 @@ app.post('/api/auth/register', async (req, res) => {
         res.json({ token, username });
     } catch (err) {
         if (err.message.includes('UNIQUE constraint failed')) {
-            return res.status(400).json({ error: 'Nom d'utilisateur ou email déjà utilisé' });
+            return res.status(400).json({ error: "Nom d'utilisateur ou email déjà utilisé" });
         }
         res.status(500).json({ error: 'Erreur serveur' });
     }
@@ -124,10 +135,10 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
     res.json({ userId: req.userId, username: req.username });
 });
 
-// ========== ROUTES PDFs ==========
+// ========== ROUTES PDFs (SANS AUTH) ==========
 
 // Upload
-app.post('/api/pdfs', authMiddleware, upload.single('pdf'), (req, res) => {
+app.post('/api/pdfs', upload.single('pdf'), (req, res) => {
     const { subject, category } = req.body;
     const file = req.file;
 
@@ -136,7 +147,7 @@ app.post('/api/pdfs', authMiddleware, upload.single('pdf'), (req, res) => {
     const stmt = db.prepare(
         'INSERT INTO pdfs (user_id, name, filename, subject, category, size) VALUES (?, ?, ?, ?, ?, ?)'
     );
-    const result = stmt.run(req.userId, file.originalname, file.filename, subject, category, file.size);
+    const result = stmt.run(ANON_USER_ID, file.originalname, file.filename, subject, category, file.size);
 
     res.json({ 
         id: result.lastInsertRowid,
@@ -150,10 +161,10 @@ app.post('/api/pdfs', authMiddleware, upload.single('pdf'), (req, res) => {
 });
 
 // Liste des PDFs
-app.get('/api/pdfs', authMiddleware, (req, res) => {
+app.get('/api/pdfs', (req, res) => {
     const { subject, category } = req.query;
-    let sql = 'SELECT * FROM pdfs WHERE user_id = ?';
-    const params = [req.userId];
+    let sql = 'SELECT * FROM pdfs WHERE 1=1';
+    const params = [];
 
     if (subject) { sql += ' AND subject = ?'; params.push(subject); }
     if (category) { sql += ' AND category = ?'; params.push(category); }
@@ -165,9 +176,9 @@ app.get('/api/pdfs', authMiddleware, (req, res) => {
 });
 
 // Supprimer
-app.delete('/api/pdfs/:id', authMiddleware, (req, res) => {
-    const stmt = db.prepare('SELECT * FROM pdfs WHERE id = ? AND user_id = ?');
-    const pdf = stmt.get(req.params.id, req.userId);
+app.delete('/api/pdfs/:id', (req, res) => {
+    const stmt = db.prepare('SELECT * FROM pdfs WHERE id = ?');
+    const pdf = stmt.get(req.params.id);
 
     if (!pdf) return res.status(404).json({ error: 'PDF non trouvé' });
 
